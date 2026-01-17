@@ -1,4 +1,4 @@
-// Firebase config
+// ----------------- Firebase config -----------------
 const firebaseConfig = {
   apiKey: "AIzaSyB6ZLEesPrFgphOyf70xlGbye8MzoJXCck",
   authDomain: "lastchance-75c9f.firebaseapp.com",
@@ -22,19 +22,19 @@ const circle = document.getElementById('circle');
 const DURATION = 60 * 1000;
 let localInterval = null;
 
-// Listen for realtime updates (KEEP)
+// ----------------- Firebase realtime listener -----------------
 counterRef.on('value', snapshot => {
   const value = snapshot.val();
   if (value !== null) counterEl.textContent = value;
 });
 
-// Reset counter when clicked (slightly extended, not changed in intent)
+// ----------------- Reset counter (Firebase local) -----------------
 circle.addEventListener('click', () => {
   const endsAt = Date.now() + DURATION;
   endsAtRef.set(endsAt);
 });
 
-// NEW: unified countdown based on timestamp
+// ----------------- Unified countdown based on endsAt -----------------
 endsAtRef.on('value', snapshot => {
   const endsAt = snapshot.val();
   if (!endsAt) return;
@@ -45,9 +45,4 @@ endsAtRef.on('value', snapshot => {
     const remainingMs = endsAt - Date.now();
     const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
 
-    // Update shared display value (safe single write per second)
-    counterRef.set(remainingSec);
-
-    if (remainingMs <= 0) clearInterval(localInterval);
-  }, 1000);
-});
+    // Update Firebase display value safe
