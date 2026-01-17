@@ -28,10 +28,16 @@ counterRef.on('value', snapshot => {
   if (value !== null) counterEl.textContent = value;
 });
 
-// ----------------- Reset counter (Firebase local) -----------------
+// ----------------- Reset counter (Firebase local + SSE) -----------------
 circle.addEventListener('click', () => {
   const endsAt = Date.now() + DURATION;
   endsAtRef.set(endsAt);
+
+  // Immediately show 60 visually
+  counterEl.textContent = 60;
+
+  // Also reset the SSE server timer
+  fetch('http://localhost:3000/reset', { method: 'POST' });
 });
 
 // ----------------- Unified countdown based on endsAt -----------------
@@ -45,4 +51,19 @@ endsAtRef.on('value', snapshot => {
     const remainingMs = endsAt - Date.now();
     const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
 
-    // Update Firebase display value safe
+    // Update Firebase display value safely
+    counterRef.set(remainingSec);
+
+    if (remainingMs <= 0) clearInterval(localInterval);
+  }, 1000);
+});
+
+// ----------------- SSE authoritative timer -----------------
+const es = new EventSource('http://localhost:3000/countdown');
+es.onmessage = e => {
+  const serverValue = parseInt(e.data, 10);
+  if (!isNaN(serverValue)) {
+    counterEl.textContent = serverValue;
+    counterRef.set(serverValue); // keep Firebase in sync if desired
+  }
+};
