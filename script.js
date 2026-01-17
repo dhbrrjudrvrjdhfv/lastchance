@@ -13,8 +13,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const counterRef = db.ref('countdown/value'); // KEEP (display value)
-const endsAtRef = db.ref('countdown/endsAt'); // NEW (authoritative time)
+const counterRef = db.ref('countdown/value'); // KEEP for optional history
+const endsAtRef = db.ref('countdown/endsAt'); // NEW for local timer sync
 
 const counterEl = document.getElementById('counter');
 const circle = document.getElementById('circle');
@@ -22,13 +22,14 @@ const circle = document.getElementById('circle');
 const DURATION = 60 * 1000;
 let localInterval = null;
 
-// ----------------- Firebase realtime listener -----------------
+// ----------------- Firebase listener (for history or optional sync) -----------------
 counterRef.on('value', snapshot => {
   const value = snapshot.val();
-  if (value !== null) counterEl.textContent = value;
+  // Optional: update display if desired, but SSE will be authoritative
+  // counterEl.textContent = value;
 });
 
-// ----------------- Reset counter (Firebase local + SSE) -----------------
+// ----------------- Reset counter (Firebase + SSE) -----------------
 circle.addEventListener('click', () => {
   const endsAt = Date.now() + DURATION;
   endsAtRef.set(endsAt);
@@ -36,11 +37,11 @@ circle.addEventListener('click', () => {
   // Immediately show 60 visually
   counterEl.textContent = 60;
 
-  // Also reset the SSE server timer
+  // Reset the SSE server timer
   fetch('http://localhost:3000/reset', { method: 'POST' });
 });
 
-// ----------------- Unified countdown based on endsAt -----------------
+// ----------------- Unified countdown based on endsAt (local only, no Firebase writes) -----------------
 endsAtRef.on('value', snapshot => {
   const endsAt = snapshot.val();
   if (!endsAt) return;
@@ -51,8 +52,8 @@ endsAtRef.on('value', snapshot => {
     const remainingMs = endsAt - Date.now();
     const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
 
-    // Update Firebase display value safely
-    counterRef.set(remainingSec);
+    // Only update the display locally — no Firebase write here
+    counterEl.textContent = remainingSec;
 
     if (remainingMs <= 0) clearInterval(localInterval);
   }, 1000);
@@ -64,6 +65,7 @@ es.onmessage = e => {
   const serverValue = parseInt(e.data, 10);
   if (!isNaN(serverValue)) {
     counterEl.textContent = serverValue;
-    counterRef.set(serverValue); // keep Firebase in sync if desired
+    // Optional: keep Firebase in sync once per reset only if desired
+    // counterRef.set(serverValue);
   }
 };
