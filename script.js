@@ -12,27 +12,42 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const counterRef = db.ref('countdown/value'); // path in database
+
+const counterRef = db.ref('countdown/value'); // KEEP (display value)
+const endsAtRef = db.ref('countdown/endsAt'); // NEW (authoritative time)
 
 const counterEl = document.getElementById('counter');
 const circle = document.getElementById('circle');
 
-// Listen for realtime updates
+const DURATION = 60 * 1000;
+let localInterval = null;
+
+// Listen for realtime updates (KEEP)
 counterRef.on('value', snapshot => {
   const value = snapshot.val();
   if (value !== null) counterEl.textContent = value;
 });
 
-// Reset counter when clicked
+// Reset counter when clicked (slightly extended, not changed in intent)
 circle.addEventListener('click', () => {
-  counterRef.set(60);
+  const endsAt = Date.now() + DURATION;
+  endsAtRef.set(endsAt);
 });
 
-// Countdown tick every second
-setInterval(() => {
-  counterRef.transaction(current => {
-    if (current === null) return 60;
-    if (current > 0) return current - 1;
-    return 0;
-  });
-}, 1000);
+// NEW: unified countdown based on timestamp
+endsAtRef.on('value', snapshot => {
+  const endsAt = snapshot.val();
+  if (!endsAt) return;
+
+  if (localInterval) clearInterval(localInterval);
+
+  localInterval = setInterval(() => {
+    const remainingMs = endsAt - Date.now();
+    const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+
+    // Update shared display value (safe single write per second)
+    counterRef.set(remainingSec);
+
+    if (remainingMs <= 0) clearInterval(localInterval);
+  }, 1000);
+});
